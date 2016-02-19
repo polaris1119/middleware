@@ -25,6 +25,9 @@ func EchoLogger() echo.MiddlewareFunc {
 
 			objLogger := logger.NewLoggerContext(c.Context)
 
+			req.ParseForm()
+			objLogger.Infoln("input params:", req.Form)
+
 			if c.Context == nil {
 				c.Context = context.WithValue(context.Background(), "logger", objLogger)
 			}
