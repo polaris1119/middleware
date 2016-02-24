@@ -25,7 +25,8 @@ func EchoLogger() echo.MiddlewareFunc {
 
 			objLogger := logger.NewLoggerContext(c.Context)
 
-			req.ParseForm()
+			// 用 req.ParseForm 会导致数据丢失，原因未知
+			c.Form("a")
 			objLogger.Infoln("input params:", req.Form)
 
 			if c.Context == nil {
