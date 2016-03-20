@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/engine/standard"
 	"github.com/polaris1119/goutils"
 	"github.com/polaris1119/logger"
 	"github.com/polaris1119/nosql"
@@ -13,9 +14,9 @@ import (
 
 // EchoCache 用于 echo 框架的缓存中间件
 func EchoCache() echo.MiddlewareFunc {
-	return func(h echo.HandlerFunc) echo.HandlerFunc {
-		return func(c *echo.Context) error {
-			req := c.Request()
+	return func(next echo.Handler) echo.Handler {
+		return echo.HandlerFunc(func(c echo.Context) error {
+			req := c.Request().(*standard.Request).Request
 
 			if req.Method == "GET" {
 
@@ -55,7 +56,7 @@ func EchoCache() echo.MiddlewareFunc {
 
 						// 1分钟更新一次
 						if time.Now().Sub(cacheData.StoreTime) >= time.Minute {
-							go h(c)
+							go next.Handle(c)
 						}
 
 						return c.JSONBlob(http.StatusOK, value)
@@ -63,11 +64,11 @@ func EchoCache() echo.MiddlewareFunc {
 				}
 			}
 
-			if err := h(c); err != nil {
-				c.Error(err)
+			if err := next.Handle(c); err != nil {
+				return err
 			}
 
 			return nil
-		}
+		})
 	}
 }
