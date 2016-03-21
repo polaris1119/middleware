@@ -6,30 +6,31 @@ import (
 	"sort"
 
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/engine/standard"
 	"github.com/polaris1119/config"
 	"github.com/polaris1119/goutils"
 )
 
 // EchoAuth 用于 echo 框架的签名校验中间件
 func EchoAuth() echo.MiddlewareFunc {
-	return func(h echo.HandlerFunc) echo.HandlerFunc {
-		return func(c *echo.Context) error {
-			req := c.Request()
+	return func(next echo.Handler) echo.Handler {
+		return echo.HandlerFunc(func(ctx echo.Context) error {
+			req := ctx.Request().(*standard.Request).Request
 
 			if len(req.Form) == 0 {
-				c.Form("from")
+				ctx.Form("from")
 			}
 
-			if sign := genSign(req.Form); sign != c.Form("sign") {
-				return c.String(http.StatusBadRequest, `400 Bad Request`)
+			if sign := genSign(req.Form); sign != ctx.Form("sign") {
+				return ctx.String(http.StatusBadRequest, `400 Bad Request`)
 			}
 
-			if err := h(c); err != nil {
-				c.Error(err)
+			if err := next.Handle(ctx); err != nil {
+				return err
 			}
 
 			return nil
-		}
+		})
 	}
 }
 
