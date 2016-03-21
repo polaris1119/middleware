@@ -5,25 +5,25 @@ import (
 	"net"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/engine/standard"
 	"github.com/polaris1119/logger"
 	"github.com/twinj/uuid"
+	"golang.org/x/net/context"
 )
 
 const HeaderKey = "X-Request-Id"
 
 // EchoLogger 用于 echo 框架的日志中间件
 func EchoLogger() echo.MiddlewareFunc {
-	return func(h echo.HandlerFunc) echo.HandlerFunc {
-		return func(c *echo.Context) error {
+	return func(next echo.Handler) echo.Handler {
+		return echo.HandlerFunc(func(c echo.Context) error {
 			start := time.Now()
 
-			req := c.Request()
-			resp := c.Response()
+			req := c.Request().(*standard.Request).Request
+			resp := c.Response().(*standard.Response)
 
-			objLogger := logger.NewLoggerContext(c.Context)
+			objLogger := logger.NewLoggerContext(c.NetContext())
 
 			// 用 req.ParseForm 会导致数据丢失，原因未知
 			if len(req.Form) == 0 {
@@ -31,8 +31,8 @@ func EchoLogger() echo.MiddlewareFunc {
 			}
 			objLogger.Infoln("input params:", req.Form)
 
-			if c.Context == nil {
-				c.Context = context.WithValue(context.Background(), "logger", objLogger)
+			if c.NetContext() == nil {
+				c.SetNetContext(context.WithValue(context.Background(), "logger", objLogger))
 			}
 
 			remoteAddr := req.RemoteAddr
@@ -44,7 +44,7 @@ func EchoLogger() echo.MiddlewareFunc {
 				remoteAddr, _, _ = net.SplitHostPort(remoteAddr)
 			}
 
-			id := func(c *echo.Context) string {
+			id := func(c echo.Context) string {
 
 				id := req.Header.Get(HeaderKey)
 				if id == "" {
@@ -73,15 +73,14 @@ func EchoLogger() echo.MiddlewareFunc {
 				stop := time.Now()
 				// [remoteAddr method path request_id code time size]
 				uri := fmt.Sprintf("[%s %s %s %s %d %s %d]", remoteAddr, method, path, id, code, stop.Sub(start), size)
-				objLogger.SetContext(context.WithValue(c.Context, "uri", uri))
+				objLogger.SetContext(context.WithValue(c.NetContext(), "uri", uri))
 				objLogger.Flush()
 			}()
 
-			if err := h(c); err != nil {
-				c.Error(err)
+			if err := next.Handle(c); err != nil {
+				return err
 			}
-
 			return nil
-		}
+		})
 	}
 }
