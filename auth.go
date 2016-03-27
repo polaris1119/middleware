@@ -17,10 +17,10 @@ func EchoAuth(signature Signature, secretKey string) echo.MiddlewareFunc {
 			req := ctx.Request().(*standard.Request).Request
 
 			if len(req.Form) == 0 {
-				ctx.Form("from")
+				ctx.FormValue("from")
 			}
 
-			if sign := signature(req.Form, secretKey); sign != ctx.Form("sign") {
+			if sign := signature(req.Form, secretKey); sign != ctx.FormValue("sign") {
 				return ctx.String(http.StatusBadRequest, `400 Bad Request`)
 			}
 

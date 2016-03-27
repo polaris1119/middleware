@@ -27,7 +27,7 @@ func EchoLogger() echo.MiddlewareFunc {
 
 			// 用 req.ParseForm 会导致数据丢失，原因未知
 			if len(req.Form) == 0 {
-				c.Form("from")
+				c.FormValue("from")
 			}
 			objLogger.Infoln("input params:", req.Form)
 
@@ -48,7 +48,7 @@ func EchoLogger() echo.MiddlewareFunc {
 
 				id := req.Header.Get(HeaderKey)
 				if id == "" {
-					id = c.Query("request_id")
+					id = c.FormValue("request_id")
 					if id == "" {
 						id = uuid.NewV4().String()
 					}

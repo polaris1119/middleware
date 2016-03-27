@@ -21,7 +21,7 @@ func EchoCache() echo.MiddlewareFunc {
 			if req.Method == "GET" {
 
 				if len(req.Form) == 0 {
-					c.Form("from")
+					c.FormValue("from")
 				}
 
 				filter := map[string]bool{
