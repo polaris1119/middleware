@@ -12,8 +12,27 @@ import (
 	"github.com/polaris1119/nosql"
 )
 
-// EchoCache 用于 echo 框架的缓存中间件
-func EchoCache() echo.MiddlewareFunc {
+type CacheKeyAlgorithm interface {
+	GenCacheKey(echo.Context) string
+}
+
+type CacheKeyFunc func(echo.Context) string
+
+func (self CacheKeyFunc) GenCacheKey(ctx echo.Context) string {
+	return self(ctx)
+}
+
+var CacheKeyAlgorithmMap = make(map[string]CacheKeyAlgorithm)
+
+var LruCache = nosql.DefaultLRUCache
+
+// EchoCache 用于 echo 框架的缓存中间件。支持自定义 cache 数量
+func EchoCache(cacheMaxEntryNum ...int) echo.MiddlewareFunc {
+
+	if len(cacheMaxEntryNum) > 0 {
+		LruCache = nosql.NewLRUCache(cacheMaxEntryNum[0])
+	}
+
 	return func(next echo.Handler) echo.Handler {
 		return echo.HandlerFunc(func(c echo.Context) error {
 			req := c.Request().(*standard.Request).Request
@@ -24,31 +43,16 @@ func EchoCache() echo.MiddlewareFunc {
 					c.FormValue("from")
 				}
 
-				filter := map[string]bool{
-					"from":      true,
-					"sign":      true,
-					"nonce":     true,
-					"timestamp": true,
+				cacheKey := ""
+				if cacheKeyAlgorithm, ok := CacheKeyAlgorithmMap[c.Path()]; ok {
+					cacheKey = cacheKeyAlgorithm.GenCacheKey(c)
+				} else {
+					cacheKey = defaultCacheKeyAlgorithm(req)
 				}
-				var keys = make([]string, 0, len(req.Form))
-				for key := range req.Form {
-					if _, ok := filter[key]; !ok {
-						keys = append(keys, key)
-					}
-				}
-
-				sort.Sort(sort.StringSlice(keys))
-
-				buffer := goutils.NewBuffer()
-				for _, k := range keys {
-					buffer.Append(k).Append("=").Append(req.Form.Get(k))
-				}
-
-				cacheKey := goutils.Md5(req.Method + req.URL.Path + buffer.String())
 
 				c.Set(nosql.CacheKey, cacheKey)
 
-				value, compressor, ok := nosql.DefaultLRUCache.GetAndUnCompress(cacheKey)
+				value, compressor, ok := LruCache.GetAndUnCompress(cacheKey)
 				if ok {
 					cacheData, ok := compressor.(*nosql.CacheData)
 					if ok {
@@ -71,4 +75,28 @@ func EchoCache() echo.MiddlewareFunc {
 			return nil
 		})
 	}
+}
+
+func defaultCacheKeyAlgorithm(req *http.Request) string {
+	filter := map[string]bool{
+		"from":      true,
+		"sign":      true,
+		"nonce":     true,
+		"timestamp": true,
+	}
+	var keys = make([]string, 0, len(req.Form))
+	for key := range req.Form {
+		if _, ok := filter[key]; !ok {
+			keys = append(keys, key)
+		}
+	}
+
+	sort.Sort(sort.StringSlice(keys))
+
+	buffer := goutils.NewBuffer()
+	for _, k := range keys {
+		buffer.Append(k).Append("=").Append(req.Form.Get(k))
+	}
+
+	return goutils.Md5(req.Method + req.URL.Path + buffer.String())
 }
