@@ -34,47 +34,57 @@ func EchoCache(cacheMaxEntryNum ...int) echo.MiddlewareFunc {
 	}
 
 	return func(next echo.Handler) echo.Handler {
-		return echo.HandlerFunc(func(c echo.Context) error {
-			req := c.Request().(*standard.Request).Request
+		return echo.HandlerFunc(func(ctx echo.Context) error {
+			req := ctx.Request().(*standard.Request).Request
 
 			if req.Method == "GET" {
+				cacheKey := getCacheKey(req, ctx)
 
-				if len(req.Form) == 0 {
-					c.FormValue("from")
-				}
+				if cacheKey != "" {
+					ctx.Set(nosql.CacheKey, cacheKey)
 
-				cacheKey := ""
-				if cacheKeyAlgorithm, ok := CacheKeyAlgorithmMap[c.Path()]; ok {
-					cacheKey = cacheKeyAlgorithm.GenCacheKey(c)
-				} else {
-					cacheKey = defaultCacheKeyAlgorithm(req)
-				}
-
-				c.Set(nosql.CacheKey, cacheKey)
-
-				value, compressor, ok := LruCache.GetAndUnCompress(cacheKey)
-				if ok {
-					cacheData, ok := compressor.(*nosql.CacheData)
+					value, compressor, ok := LruCache.GetAndUnCompress(cacheKey)
 					if ok {
-						logger.Debugln("cache hit:", cacheData.StoreTime, "now:", time.Now())
+						cacheData, ok := compressor.(*nosql.CacheData)
+						if ok {
+							logger.Debugln("cache hit:", cacheData.StoreTime, "now:", time.Now())
 
-						// 1分钟更新一次
-						if time.Now().Sub(cacheData.StoreTime) >= time.Minute {
-							go next.Handle(c)
+							// 1分钟更新一次
+							if time.Now().Sub(cacheData.StoreTime) >= time.Minute {
+								go next.Handle(ctx)
+							}
+
+							return ctx.JSONBlob(http.StatusOK, value)
 						}
-
-						return c.JSONBlob(http.StatusOK, value)
 					}
 				}
 			}
 
-			if err := next.Handle(c); err != nil {
+			if err := next.Handle(ctx); err != nil {
 				return err
 			}
 
 			return nil
 		})
 	}
+}
+
+func getCacheKey(req *http.Request, ctx echo.Context) string {
+	if len(req.Form) == 0 {
+		ctx.FormValue("from")
+	}
+
+	cacheKey := ""
+	if cacheKeyAlgorithm, ok := CacheKeyAlgorithmMap[ctx.Path()]; ok {
+		// nil 表示不缓存
+		if cacheKeyAlgorithm != nil {
+			cacheKey = cacheKeyAlgorithm.GenCacheKey(ctx)
+		}
+	} else {
+		cacheKey = defaultCacheKeyAlgorithm(req)
+	}
+
+	return cacheKey
 }
 
 func defaultCacheKeyAlgorithm(req *http.Request) string {
