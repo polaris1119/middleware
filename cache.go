@@ -47,27 +47,21 @@ func EchoCache(cacheMaxEntryNum ...int) echo.MiddlewareFunc {
 					if ok {
 						cacheData, ok := compressor.(*nosql.CacheData)
 						if ok {
-							logger.Debugln("cache hit:", cacheData.StoreTime, "now:", time.Now())
 
 							// 1分钟更新一次
 							if time.Now().Sub(cacheData.StoreTime) >= time.Minute {
-								go func() {
-									// 因为另外开 goroutine，避免 ctx 被垃圾回收，导致 panic
-									defer func() {
-										if err := recover(); err != nil {
-											logger.Errorln("EchoCache panic:", err)
-										}
-									}()
-									next.Handle(ctx)
-								}()
+								// TODO:雪崩问题处理
+								goto NEXT
 							}
 
+							logger.Debugln("cache hit:", cacheData.StoreTime, "now:", time.Now())
 							return ctx.JSONBlob(http.StatusOK, value)
 						}
 					}
 				}
 			}
 
+		NEXT:
 			if err := next.Handle(ctx); err != nil {
 				return err
 			}
