@@ -51,7 +51,15 @@ func EchoCache(cacheMaxEntryNum ...int) echo.MiddlewareFunc {
 
 							// 1分钟更新一次
 							if time.Now().Sub(cacheData.StoreTime) >= time.Minute {
-								go next.Handle(ctx)
+								go func() {
+									// 因为另外开 goroutine，避免 ctx 被垃圾回收，导致 panic
+									defer func() {
+										if err := recover(); err != nil {
+											logger.Errorln("EchoCache panic:", err)
+										}
+									}()
+									next.Handle(ctx)
+								}()
 							}
 
 							return ctx.JSONBlob(http.StatusOK, value)
