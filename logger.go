@@ -23,17 +23,14 @@ func EchoLogger() echo.MiddlewareFunc {
 			req := c.Request().(*standard.Request).Request
 			resp := c.Response().(*standard.Response)
 
-			objLogger := logger.NewLoggerContext(c.NetContext())
+			objLogger := logger.GetLogger()
+			c.SetNetContext(context.WithValue(context.Background(), "logger", objLogger))
 
 			// 用 req.ParseForm 会导致数据丢失，原因未知
 			if len(req.Form) == 0 {
 				c.FormValue("from")
 			}
 			objLogger.Infoln("input params:", req.Form)
-
-			if c.NetContext() == nil {
-				c.SetNetContext(context.WithValue(context.Background(), "logger", objLogger))
-			}
 
 			remoteAddr := req.RemoteAddr
 			if ip := req.Header.Get(echo.XRealIP); ip != "" {
