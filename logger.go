@@ -72,6 +72,7 @@ func EchoLogger() echo.MiddlewareFunc {
 				uri := fmt.Sprintf("[%s %s %s %s %d %s %d]", remoteAddr, method, path, id, code, stop.Sub(start), size)
 				objLogger.SetContext(context.WithValue(c.NetContext(), "uri", uri))
 				objLogger.Flush()
+				logger.PutLogger(objLogger)
 			}()
 
 			if err := next.Handle(c); err != nil {
