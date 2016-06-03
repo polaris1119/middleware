@@ -26,11 +26,7 @@ func EchoLogger() echo.MiddlewareFunc {
 			objLogger := logger.GetLogger()
 			c.SetNetContext(context.WithValue(context.Background(), "logger", objLogger))
 
-			// 用 req.ParseForm 会导致数据丢失，原因未知
-			if len(req.Form) == 0 {
-				c.FormValue("from")
-			}
-			objLogger.Infoln("input params:", req.Form)
+			objLogger.Infoln("query params:", c.QueryParams())
 
 			remoteAddr := req.RemoteAddr
 			if ip := req.Header.Get(echo.XRealIP); ip != "" {
