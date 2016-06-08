@@ -62,8 +62,8 @@ func EchoLogger() echo.MiddlewareFunc {
 				code := resp.Status()
 
 				stop := time.Now()
-				// [remoteAddr method path request_id (UA) code time size]
-				uri := fmt.Sprintf("[%s %s %s %s (%s) %d %s %d]", remoteAddr, method, path, id, req.UserAgent(), code, stop.Sub(start), size)
+				// [remoteAddr method path request_id "UA" code time size]
+				uri := fmt.Sprintf(`[%s %s %s %s "%s" %d %s %d]`, remoteAddr, method, path, id, req.UserAgent(), code, stop.Sub(start), size)
 				objLogger.SetContext(context.WithValue(ctx.Context(), "uri", uri))
 				objLogger.Flush()
 				logger.PutLogger(objLogger)
