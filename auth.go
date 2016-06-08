@@ -5,30 +5,33 @@ import (
 	"net/url"
 
 	"github.com/labstack/echo"
-	"github.com/labstack/echo/engine/standard"
 )
 
-type Signature func(url.Values, string) string
+type AuthConfig struct {
+	signature func(url.Values, string) string
+	secretKey string
+}
+
+var DefaultAuthConfig = &AuthConfig{}
+
+func EchoAuth() echo.MiddlewareFunc {
+	return EchoAuthWithConfig(DefaultAuthConfig)
+}
 
 // EchoAuth 用于 echo 框架的签名校验中间件
-func EchoAuth(signature Signature, secretKey string) echo.MiddlewareFunc {
-	return func(next echo.Handler) echo.Handler {
-		return echo.HandlerFunc(func(ctx echo.Context) error {
-			req := ctx.Request().(*standard.Request).Request
-
-			if len(req.Form) == 0 {
-				ctx.FormValue("from")
-			}
-
-			if sign := signature(req.Form, secretKey); sign != ctx.FormValue("sign") {
+func EchoAuthWithConfig(authConfig *AuthConfig) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(ctx echo.Context) error {
+			sign := authConfig.signature(ctx.FormParams(), authConfig.secretKey)
+			if sign != ctx.FormValue("sign") {
 				return ctx.String(http.StatusBadRequest, `400 Bad Request`)
 			}
 
-			if err := next.Handle(ctx); err != nil {
+			if err := next(ctx); err != nil {
 				return err
 			}
 
 			return nil
-		})
+		}
 	}
 }

@@ -28,8 +28,8 @@ func (s *Stats) Process() echo.MiddlewareFunc {
 }
 
 // Process is the middleware function.
-func (s *Stats) process(next echo.Handler) echo.Handler {
-	return echo.HandlerFunc(func(ctx echo.Context) error {
+func (s *Stats) process(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(ctx echo.Context) error {
 		defer func() {
 			s.mutex.Lock()
 			defer s.mutex.Unlock()
@@ -38,12 +38,12 @@ func (s *Stats) process(next echo.Handler) echo.Handler {
 			s.Statuses[status]++
 		}()
 
-		if err := next.Handle(ctx); err != nil {
+		if err := next(ctx); err != nil {
 			return err
 		}
 
 		return nil
-	})
+	}
 }
 
 // Handle is the endpoint to get stats.

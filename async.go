@@ -10,15 +10,15 @@ import (
 
 // EchoAsync 用于 echo 框架的异步处理中间件
 func EchoAsync() echo.MiddlewareFunc {
-	return func(next echo.Handler) echo.Handler {
-		return echo.HandlerFunc(func(ctx echo.Context) error {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(ctx echo.Context) error {
 			req := ctx.Request().(*standard.Request).Request
 
 			if req.Method != "GET" {
 				// 是否异步执行
 				async := goutils.MustBool(ctx.FormValue("async"), false)
 				if async {
-					go next.Handle(ctx)
+					go next(ctx)
 
 					result := map[string]interface{}{
 						"code": 0,
@@ -29,11 +29,11 @@ func EchoAsync() echo.MiddlewareFunc {
 				}
 			}
 
-			if err := next.Handle(ctx); err != nil {
+			if err := next(ctx); err != nil {
 				return err
 			}
 
 			return nil
-		})
+		}
 	}
 }

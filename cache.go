@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/labstack/echo"
-	"github.com/labstack/echo/engine/standard"
 	"github.com/polaris1119/goutils"
 	"github.com/polaris1119/logger"
 	"github.com/polaris1119/nosql"
@@ -33,12 +32,12 @@ func EchoCache(cacheMaxEntryNum ...int) echo.MiddlewareFunc {
 		LruCache = nosql.NewLRUCache(cacheMaxEntryNum[0])
 	}
 
-	return func(next echo.Handler) echo.Handler {
-		return echo.HandlerFunc(func(ctx echo.Context) error {
-			req := ctx.Request().(*standard.Request).Request
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(ctx echo.Context) error {
+			req := ctx.Request()
 
-			if req.Method == "GET" {
-				cacheKey := getCacheKey(req, ctx)
+			if req.Method() == "GET" {
+				cacheKey := getCacheKey(ctx)
 
 				if cacheKey != "" {
 					ctx.Set(nosql.CacheKey, cacheKey)
@@ -62,20 +61,16 @@ func EchoCache(cacheMaxEntryNum ...int) echo.MiddlewareFunc {
 			}
 
 		NEXT:
-			if err := next.Handle(ctx); err != nil {
+			if err := next(ctx); err != nil {
 				return err
 			}
 
 			return nil
-		})
+		}
 	}
 }
 
-func getCacheKey(req *http.Request, ctx echo.Context) string {
-	if len(req.Form) == 0 {
-		ctx.FormValue("from")
-	}
-
+func getCacheKey(ctx echo.Context) string {
 	cacheKey := ""
 	if cacheKeyAlgorithm, ok := CacheKeyAlgorithmMap[ctx.Path()]; ok {
 		// nil 表示不缓存
@@ -83,21 +78,22 @@ func getCacheKey(req *http.Request, ctx echo.Context) string {
 			cacheKey = cacheKeyAlgorithm.GenCacheKey(ctx)
 		}
 	} else {
-		cacheKey = defaultCacheKeyAlgorithm(req)
+		cacheKey = defaultCacheKeyAlgorithm(ctx)
 	}
 
 	return cacheKey
 }
 
-func defaultCacheKeyAlgorithm(req *http.Request) string {
+func defaultCacheKeyAlgorithm(ctx echo.Context) string {
 	filter := map[string]bool{
 		"from":      true,
 		"sign":      true,
 		"nonce":     true,
 		"timestamp": true,
 	}
-	var keys = make([]string, 0, len(req.Form))
-	for key := range req.Form {
+	form := ctx.FormParams()
+	var keys = make([]string, 0, len(form))
+	for key := range form {
 		if _, ok := filter[key]; !ok {
 			keys = append(keys, key)
 		}
@@ -107,8 +103,9 @@ func defaultCacheKeyAlgorithm(req *http.Request) string {
 
 	buffer := goutils.NewBuffer()
 	for _, k := range keys {
-		buffer.Append(k).Append("=").Append(req.Form.Get(k))
+		buffer.Append(k).Append("=").Append(ctx.FormValue(k))
 	}
 
-	return goutils.Md5(req.Method + req.URL.Path + buffer.String())
+	req := ctx.Request()
+	return goutils.Md5(req.Method() + req.URL().Path() + buffer.String())
 }

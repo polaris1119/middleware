@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/labstack/echo"
-	"github.com/labstack/echo/engine/standard"
 	"github.com/polaris1119/logger"
 	"github.com/twinj/uuid"
 	"golang.org/x/net/context"
@@ -16,47 +15,46 @@ const HeaderKey = "X-Request-Id"
 
 // EchoLogger 用于 echo 框架的日志中间件
 func EchoLogger() echo.MiddlewareFunc {
-	return func(next echo.Handler) echo.Handler {
-		return echo.HandlerFunc(func(c echo.Context) error {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(ctx echo.Context) error {
 			start := time.Now()
 
-			req := c.Request().(*standard.Request).Request
-			resp := c.Response().(*standard.Response)
+			req := ctx.Request()
+			resp := ctx.Response()
 
 			objLogger := logger.GetLogger()
-			c.SetNetContext(context.WithValue(context.Background(), "logger", objLogger))
+			ctx.SetContext(context.WithValue(context.Background(), "logger", objLogger))
 
-			objLogger.Infoln("query params:", c.QueryParams())
+			objLogger.Infoln("query params:", ctx.QueryParams())
 
-			remoteAddr := req.RemoteAddr
-			if ip := req.Header.Get(echo.XRealIP); ip != "" {
+			remoteAddr := req.RemoteAddress()
+			if ip := req.Header().Get(echo.HeaderXRealIP); ip != "" {
 				remoteAddr = ip
-			} else if ip = req.Header.Get(echo.XForwardedFor); ip != "" {
+			} else if ip = req.Header().Get(echo.HeaderXForwardedFor); ip != "" {
 				remoteAddr = ip
 			} else {
 				remoteAddr, _, _ = net.SplitHostPort(remoteAddr)
 			}
 
-			id := func(c echo.Context) string {
-
-				id := req.Header.Get(HeaderKey)
+			id := func(ctx echo.Context) string {
+				id := req.Header().Get(HeaderKey)
 				if id == "" {
-					id = c.FormValue("request_id")
+					id = ctx.FormValue("request_id")
 					if id == "" {
 						id = uuid.NewV4().String()
 					}
 				}
 
-				c.Set("request_id", id)
+				ctx.Set("request_id", id)
 
 				return id
-			}(c)
+			}(ctx)
 
 			resp.Header().Set(HeaderKey, id)
 
 			defer func() {
-				method := req.Method
-				path := req.URL.Path
+				method := req.Method()
+				path := req.URL().Path()
 				if path == "" {
 					path = "/"
 				}
@@ -64,17 +62,17 @@ func EchoLogger() echo.MiddlewareFunc {
 				code := resp.Status()
 
 				stop := time.Now()
-				// [remoteAddr method path request_id code time size]
-				uri := fmt.Sprintf("[%s %s %s %s %d %s %d]", remoteAddr, method, path, id, code, stop.Sub(start), size)
-				objLogger.SetContext(context.WithValue(c.NetContext(), "uri", uri))
+				// [remoteAddr method path request_id (UA) code time size]
+				uri := fmt.Sprintf("[%s %s %s %s (%s) %d %s %d]", remoteAddr, method, path, id, req.UserAgent(), code, stop.Sub(start), size)
+				objLogger.SetContext(context.WithValue(ctx.Context(), "uri", uri))
 				objLogger.Flush()
 				logger.PutLogger(objLogger)
 			}()
 
-			if err := next.Handle(c); err != nil {
+			if err := next(ctx); err != nil {
 				return err
 			}
 			return nil
-		})
+		}
 	}
 }
