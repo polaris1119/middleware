@@ -13,8 +13,21 @@ import (
 
 const HeaderKey = "X-Request-Id"
 
-// EchoLogger 用于 echo 框架的日志中间件
+type LoggerConfig struct {
+	// 是否输出 POST 参数，默认不输出
+	OutputPost bool
+	// 当 OutputPost 为 true 时，排除这些 path，避免包含敏感信息输出
+	Excludes map[string]struct{}
+}
+
+var DefaultLoggerConfig = &LoggerConfig{}
+
 func EchoLogger() echo.MiddlewareFunc {
+	return EchoLoggerWitchConfig(DefaultLoggerConfig)
+}
+
+// EchoLoggerWitchConfig 用于 echo 框架的日志中间件
+func EchoLoggerWitchConfig(loggerConfig *LoggerConfig) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) error {
 			start := time.Now()
@@ -25,7 +38,19 @@ func EchoLogger() echo.MiddlewareFunc {
 			objLogger := logger.GetLogger()
 			ctx.SetContext(context.WithValue(context.Background(), "logger", objLogger))
 
-			objLogger.Infoln("query params:", ctx.QueryParams())
+			var params map[string][]string
+			if loggerConfig.OutputPost {
+				params = ctx.FormParams()
+				if len(loggerConfig.Excludes) > 0 {
+					_, ok := loggerConfig.Excludes[req.URL().Path()]
+					if ok {
+						params = ctx.QueryParams()
+					}
+				}
+			} else {
+				params = ctx.QueryParams()
+			}
+			objLogger.Infoln("request params:", params)
 
 			remoteAddr := req.RemoteAddress()
 			if ip := req.Header().Get(echo.HeaderXRealIP); ip != "" {
