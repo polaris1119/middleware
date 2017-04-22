@@ -12,6 +12,13 @@ type AuthConfig struct {
 	secretKey string
 }
 
+func NewAuthConfig(signature func(url.Values, string) string, secretKey string) *AuthConfig {
+	return &AuthConfig{
+		signature: signature,
+		secretKey: secretKey,
+	}
+}
+
 var DefaultAuthConfig = &AuthConfig{}
 
 func EchoAuth() echo.MiddlewareFunc {
@@ -22,7 +29,11 @@ func EchoAuth() echo.MiddlewareFunc {
 func EchoAuthWithConfig(authConfig *AuthConfig) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) error {
-			sign := authConfig.signature(ctx.FormParams(), authConfig.secretKey)
+			formParams, err := ctx.FormParams()
+			if err != nil {
+				return ctx.String(http.StatusBadRequest, `400 Bad Request`)
+			}
+			sign := authConfig.signature(formParams, authConfig.secretKey)
 			if sign != ctx.FormValue("sign") {
 				return ctx.String(http.StatusBadRequest, `400 Bad Request`)
 			}

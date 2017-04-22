@@ -1,14 +1,13 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/labstack/echo"
 	"github.com/polaris1119/logger"
 	"github.com/twinj/uuid"
-	"golang.org/x/net/context"
 )
 
 const HeaderKey = "X-Request-Id"
@@ -36,13 +35,13 @@ func EchoLoggerWitchConfig(loggerConfig *LoggerConfig) echo.MiddlewareFunc {
 			resp := ctx.Response()
 
 			objLogger := logger.GetLogger()
-			ctx.SetContext(context.WithValue(context.Background(), "logger", objLogger))
+			ctx.Set("logger", objLogger)
 
 			var params map[string][]string
 			if loggerConfig.OutputPost {
-				params = ctx.FormParams()
+				params, _ = ctx.FormParams()
 				if len(loggerConfig.Excludes) > 0 {
-					_, ok := loggerConfig.Excludes[req.URL().Path()]
+					_, ok := loggerConfig.Excludes[req.URL.Path]
 					if ok {
 						params = ctx.QueryParams()
 					}
@@ -52,17 +51,10 @@ func EchoLoggerWitchConfig(loggerConfig *LoggerConfig) echo.MiddlewareFunc {
 			}
 			objLogger.Infoln("request params:", params)
 
-			remoteAddr := req.RemoteAddress()
-			if ip := req.Header().Get(echo.HeaderXRealIP); ip != "" {
-				remoteAddr = ip
-			} else if ip = req.Header().Get(echo.HeaderXForwardedFor); ip != "" {
-				remoteAddr = ip
-			} else {
-				remoteAddr, _, _ = net.SplitHostPort(remoteAddr)
-			}
+			remoteAddr := ctx.RealIP()
 
 			id := func(ctx echo.Context) string {
-				id := req.Header().Get(HeaderKey)
+				id := req.Header.Get(HeaderKey)
 				if id == "" {
 					id = ctx.FormValue("request_id")
 					if id == "" {
@@ -78,18 +70,18 @@ func EchoLoggerWitchConfig(loggerConfig *LoggerConfig) echo.MiddlewareFunc {
 			resp.Header().Set(HeaderKey, id)
 
 			defer func() {
-				method := req.Method()
-				path := req.URL().Path()
+				method := req.Method
+				path := req.URL.Path
 				if path == "" {
 					path = "/"
 				}
-				size := resp.Size()
-				code := resp.Status()
+				size := resp.Size
+				code := resp.Status
 
 				stop := time.Now()
 				// [remoteAddr method path request_id "UA" code time size]
 				uri := fmt.Sprintf(`[%s %s %s %s "%s" %d %s %d]`, remoteAddr, method, path, id, req.UserAgent(), code, stop.Sub(start), size)
-				objLogger.SetContext(context.WithValue(ctx.Context(), "uri", uri))
+				objLogger.SetContext(context.WithValue(context.Background(), "uri", uri))
 				objLogger.Flush()
 				logger.PutLogger(objLogger)
 			}()

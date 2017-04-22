@@ -36,7 +36,7 @@ func EchoCache(cacheMaxEntryNum ...int) echo.MiddlewareFunc {
 		return func(ctx echo.Context) error {
 			req := ctx.Request()
 
-			if req.Method() == "GET" {
+			if req.Method == "GET" {
 				cacheKey := getCacheKey(ctx)
 
 				if cacheKey != "" {
@@ -91,7 +91,11 @@ func defaultCacheKeyAlgorithm(ctx echo.Context) string {
 		"nonce":     true,
 		"timestamp": true,
 	}
-	form := ctx.FormParams()
+	form, err := ctx.FormParams()
+	if err != nil {
+		return ""
+	}
+
 	var keys = make([]string, 0, len(form))
 	for key := range form {
 		if _, ok := filter[key]; !ok {
@@ -107,5 +111,5 @@ func defaultCacheKeyAlgorithm(ctx echo.Context) string {
 	}
 
 	req := ctx.Request()
-	return goutils.Md5(req.Method() + req.URL().Path() + buffer.String())
+	return goutils.Md5(req.Method + req.URL.Path + buffer.String())
 }

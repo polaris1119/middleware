@@ -34,7 +34,7 @@ func (s *Stats) process(next echo.HandlerFunc) echo.HandlerFunc {
 			s.mutex.Lock()
 			defer s.mutex.Unlock()
 			s.RequestCount++
-			status := strconv.Itoa(ctx.Response().Status())
+			status := strconv.Itoa(ctx.Response().Status)
 			s.Statuses[status]++
 		}()
 

@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo"
-	"github.com/labstack/echo/engine/standard"
 	"github.com/polaris1119/goutils"
 )
 
@@ -12,7 +11,7 @@ import (
 func EchoAsync() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) error {
-			req := ctx.Request().(*standard.Request).Request
+			req := ctx.Request()
 
 			if req.Method != "GET" {
 				// 是否异步执行
